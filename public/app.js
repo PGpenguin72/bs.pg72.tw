@@ -6,7 +6,14 @@ const fmt = n => Math.round(n ?? 0).toLocaleString('zh-TW');
 const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n ?? 0));
 const pct = (w, g) => (g ? Math.round((w / g) * 100) : 0);
 const wr = r => pct(r.wins || 0, (r.wins || 0) + (r.losses || 0));
-const get = path => fetch(path).then(r => { if (!r.ok) throw new Error(`${path} ${r.status}`); return r.json(); });
+// API：init 預先抓好的先用；其餘請求帶上資料版本號，同一版本 CDN 直接回快取
+let VER = null;
+const pre = new Map();
+const get = path => {
+  if (pre.has(path)) { const v = pre.get(path); pre.delete(path); return Promise.resolve(v); }
+  const url = VER && path.startsWith('/api/') ? `${path}${path.includes('?') ? '&' : '?'}v=${VER}` : path;
+  return fetch(url).then(r => { if (!r.ok) throw new Error(`${path} ${r.status}`); return r.json(); });
+};
 const title = s => (s || '').toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase());
 
 // 圖片（Brawlify CDN）
@@ -730,13 +737,20 @@ $('#refresh').addEventListener('click', async () => {
   try {
     const r = await fetch('/api/refresh', { method: 'POST' }).then(r => r.json());
     label.textContent = r.skipped ? '剛更新過' : r.ok ? `+${r.newBattles} 場` : '失敗';
-    await init();
+    await init(true);
   } catch { label.textContent = '失敗'; }
   btn.classList.remove('spin');
   setTimeout(() => { btn.disabled = false; label.textContent = '更新'; }, 2500);
 });
 
-async function init() {
+async function init(fresh = false) {
+  // 一支 /api/init 拿齊首頁資料，放進 pre 讓下面各函式的 get() 直接取用；
+  // 同時拿到資料版本號，之後的請求都帶著它（CDN 才能長時間快取）。手動更新時加 fresh 繞過快取
+  const d = await fetch(`/api/init?days=${days}${fresh ? `&fresh=${Date.now()}` : ''}`).then(r => { if (!r.ok) throw new Error(`/api/init ${r.status}`); return r.json(); });
+  VER = d.version;
+  pre.clear();
+  pre.set('/api/summary', d.summary).set(`/api/stats?days=${days}`, d.stats).set('/api/stats?days=0', d.all)
+    .set(`/api/trophies?days=${days}`, d.trophies).set('/api/brawlers', d.brawlers).set('/api/battles?limit=1', d.latest);
   await loadSummary();
   const [all] = await Promise.all([get('/api/stats?days=0'), loadOverview(), loadBrawlers()]);
   $('#f-mode').innerHTML = '<option value="">全部模式</option>' + all.byMode.filter(m => m.mode).map(m => `<option value="${esc(m.mode)}" data-color="${modeColor(m.mode)}">${esc(modeName(m.mode))}</option>`).join('');

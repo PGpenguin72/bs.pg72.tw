@@ -119,6 +119,8 @@ export async function collect(env, now = Date.now()) {
       try { stmts.push(kvPut(db, 'brawler_list', (await api(env, '/brawlers')).items || [], now)); } catch (e) { console.warn('brawlers', e.message); }
     }
 
+    // 資料版本：除了一定會寫的 player 之外還有別的寫入，代表資料真的變了 → 換版本，前端的快取跟著失效
+    if (stmts.length > 1) stmts.push(kvPut(db, 'version', now, now));
     stmts.push(kvPut(db, 'state', { ok: true, last_fetch_at: now, new_battles: newBattles }, now));
     for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
 
@@ -141,7 +143,26 @@ async function saveOg(db, now = Date.now(), site) {
   const png = await renderOg({ ...d, site }, now);
   let bin = '';
   for (let i = 0; i < png.length; i += 0x8000) bin += String.fromCharCode(...png.subarray(i, i + 0x8000));
-  await kvPut(db, 'og', { png: btoa(bin), ...shareText(d) }, now).run();
+  // 分享文字另外存一筆小的：首頁只需要標題和描述，不用每次讀整張圖
+  await db.batch([kvPut(db, 'og', { png: btoa(bin) }, now), kvPut(db, 'og_meta', shareText(d), now)]);
+}
+
+// ---------- 邊緣快取 ----------
+// 前端的請求都帶 ?v=資料版本（排程抓到新資料才會變），同一版本的結果可以放心在 CDN 上存很久；
+// 沒帶版本的（像 /api/init）只存幾十秒。
+async function cached(req, ctx, ttl, browserTtl, make) {
+  const cache = caches.default;
+  const key = new Request(req.url, { method: 'GET' });
+  const hit = await cache.match(key);
+  if (hit) return hit;
+  const res = await make();
+  if (res.status !== 200) return res;
+  const body = await res.arrayBuffer();
+  const headers = new Headers(res.headers);
+  headers.set('Cache-Control', `public, max-age=${ttl}`);
+  ctx.waitUntil(cache.put(key, new Response(body, { status: 200, headers })));
+  headers.set('Cache-Control', `public, max-age=${browserTtl}`);
+  return new Response(body, { status: 200, headers });
 }
 
 async function serveOg(env) {
@@ -149,13 +170,13 @@ async function serveOg(env) {
   if (!og) { await saveOg(env.DB, Date.now(), env.SITE); og = await kvGet(env.DB, 'og'); }
   if (!og) return new Response('not ready', { status: 404 });
   const bytes = Uint8Array.from(atob(og.v.png), c => c.charCodeAt(0));
-  return new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=600' } });
+  return new Response(bytes, { headers: { 'Content-Type': 'image/png' } });
 }
 
 // 首頁：把最新數據塞進分享用的 meta（爬蟲不會跑 JS）
 async function serveIndex(req, env) {
-  const res = await env.ASSETS.fetch(req);
-  const og = await kvGet(env.DB, 'og');
+  const res = await env.ASSETS.fetch(new Request(new URL('/', req.url), req));
+  const og = await kvGet(env.DB, 'og_meta');
   const t = og?.v || shareText(null);
   const url = new URL(req.url);
   const image = `${url.origin}/og.png?v=${og?.at || 0}`;
@@ -172,7 +193,7 @@ async function serveIndex(req, env) {
     .on('head', { element: e => e.append(tags.map(([k, n, v]) => `<meta ${k}="${n}" content="${attr(v)}">`).join(''), { html: true }) })
     .transform(res);
   const h = new Headers(out.headers);
-  h.set('Cache-Control', 'public, max-age=60');
+  h.delete('ETag');
   return new Response(out.body, { status: out.status, headers: h });
 }
 
@@ -214,60 +235,76 @@ async function stats(db, since) {
   return { overall, byBrawler, byMode, byMap, byType, byHour, daily, teammates, byWeekHour, recent };
 }
 
+async function summaryData(db) {
+  const [player, club, state, list, totals, firstSnap] = await Promise.all([
+    kvGet(db, 'player'), kvGet(db, 'club'), kvGet(db, 'state'), kvGet(db, 'brawler_list'),
+    db.prepare('SELECT COUNT(*) AS battles, MIN(at) AS first_at FROM battles').first(),
+    db.prepare('SELECT MIN(at) AS at FROM player_snapshots').first(),
+  ]);
+  const p = player?.v || null;
+  if (p) delete p.brawlers; // 英雄清單另外從 /api/brawlers 拿
+  return {
+    player: p, club: club?.v || null, state: state?.v || null,
+    totals: { ...totals, tracking_since: firstSnap?.at || null },
+    brawler_total: list?.v?.length || null,
+  };
+}
+
+async function trophiesData(db, since) {
+  const { results } = await db.prepare('SELECT at, trophies, highest_trophies, exp_level FROM player_snapshots WHERE at >= ? ORDER BY at').bind(since).all();
+  return results;
+}
+
+async function battlesData(db, { limit = 30, before = 9e15, brawler, mode } = {}) {
+  const where = ['at < ?'], args = [before];
+  if (brawler) { where.push('brawler_id = ?'); args.push(Number(brawler)); }
+  if (mode) { where.push('mode = ?'); args.push(mode); }
+  const { results } = await db.prepare(
+    `SELECT battle_time, at, event_id, mode, map, type, result, rank, outcome, trophy_change, duration, brawler_id, brawler_name, brawler_power, brawler_trophies, is_star_player, teammates, opponents
+     FROM battles WHERE ${where.join(' AND ')} ORDER BY at DESC LIMIT ?`).bind(...args, Math.min(limit, 100)).all();
+  for (const r of results) { r.teammates = JSON.parse(r.teammates || '[]'); r.opponents = JSON.parse(r.opponents || '[]'); }
+  return results;
+}
+
+async function brawlersData(db) {
+  const { results } = await db.prepare(
+    `SELECT l.brawler_id, l.name, l.power, l.rank, l.trophies, l.highest_trophies, l.gadgets, l.star_powers, l.gears, l.prestige, l.max_win_streak, l.updated_at,
+       COALESCE(json_array_length(json_extract(l.raw, '$.hyperCharges')), 0) AS hypercharges,
+       s.games, s.wins, s.losses, s.trophy_change
+     FROM brawlers_latest l
+     LEFT JOIN (SELECT brawler_id, COUNT(*) AS games, SUM(outcome = 'W') AS wins, SUM(outcome = 'L') AS losses, SUM(trophy_change) AS trophy_change FROM battles GROUP BY brawler_id) s
+       ON s.brawler_id = l.brawler_id
+     ORDER BY l.trophies DESC`).all();
+  return results;
+}
+
 async function handleApi(req, env, url) {
   const db = env.DB;
   const now = Date.now();
   const path = url.pathname.replace(/\/+$/, '');
 
-  if (path === '/api/summary') {
-    const [player, club, state, list, totals, firstSnap] = await Promise.all([
-      kvGet(db, 'player'), kvGet(db, 'club'), kvGet(db, 'state'), kvGet(db, 'brawler_list'),
-      db.prepare('SELECT COUNT(*) AS battles, MIN(at) AS first_at FROM battles').first(),
-      db.prepare('SELECT MIN(at) AS at FROM player_snapshots').first(),
+  // 開頁面一次拿齊首頁要的東西，順便給前端資料版本號（之後的請求都帶著它，才能長時間快取）
+  if (path === '/api/init') {
+    const since = sinceFrom(url, now);
+    const [version, summary, st, all, trophies, brawlers, latest] = await Promise.all([
+      kvGet(db, 'version'), summaryData(db), stats(db, since), since ? stats(db, 0) : null,
+      trophiesData(db, since), brawlersData(db), battlesData(db, { limit: 1 }),
     ]);
-    const p = player?.v || null;
-    if (p) delete p.brawlers; // 英雄清單另外從 /api/brawlers 拿
-    return json({
-      player: p, club: club?.v || null, state: state?.v || null,
-      totals: { ...totals, tracking_since: firstSnap?.at || null },
-      brawler_total: list?.v?.length || null,
-    });
+    return json({ version: version?.at || summary.state?.last_fetch_at || 0, summary, stats: st, all: all || st, trophies, brawlers, latest });
   }
 
-  if (path === '/api/trophies') {
-    const since = sinceFrom(url, now);
-    const { results } = await db.prepare('SELECT at, trophies, highest_trophies, exp_level FROM player_snapshots WHERE at >= ? ORDER BY at').bind(since).all();
-    return json(results);
-  }
+  if (path === '/api/summary') return json(await summaryData(db));
+
+  if (path === '/api/trophies') return json(await trophiesData(db, sinceFrom(url, now)));
 
   if (path === '/api/battles') {
-    const limit = Math.min(Number(url.searchParams.get('limit')) || 30, 100);
-    const before = Number(url.searchParams.get('before')) || 9e15;
-    const where = ['at < ?'], args = [before];
-    const brawler = url.searchParams.get('brawler');
-    const mode = url.searchParams.get('mode');
-    if (brawler) { where.push('brawler_id = ?'); args.push(Number(brawler)); }
-    if (mode) { where.push('mode = ?'); args.push(mode); }
-    const { results } = await db.prepare(
-      `SELECT battle_time, at, event_id, mode, map, type, result, rank, outcome, trophy_change, duration, brawler_id, brawler_name, brawler_power, brawler_trophies, is_star_player, teammates, opponents
-       FROM battles WHERE ${where.join(' AND ')} ORDER BY at DESC LIMIT ?`).bind(...args, limit).all();
-    for (const r of results) { r.teammates = JSON.parse(r.teammates || '[]'); r.opponents = JSON.parse(r.opponents || '[]'); }
-    return json(results);
+    const q = url.searchParams;
+    return json(await battlesData(db, { limit: Number(q.get('limit')) || 30, before: Number(q.get('before')) || 9e15, brawler: q.get('brawler'), mode: q.get('mode') }));
   }
 
   if (path === '/api/stats') return json(await stats(db, sinceFrom(url, now)));
 
-  if (path === '/api/brawlers') {
-    const { results } = await db.prepare(
-      `SELECT l.brawler_id, l.name, l.power, l.rank, l.trophies, l.highest_trophies, l.gadgets, l.star_powers, l.gears, l.prestige, l.max_win_streak, l.updated_at,
-         COALESCE(json_array_length(json_extract(l.raw, '$.hyperCharges')), 0) AS hypercharges,
-         s.games, s.wins, s.losses, s.trophy_change
-       FROM brawlers_latest l
-       LEFT JOIN (SELECT brawler_id, COUNT(*) AS games, SUM(outcome = 'W') AS wins, SUM(outcome = 'L') AS losses, SUM(trophy_change) AS trophy_change FROM battles GROUP BY brawler_id) s
-         ON s.brawler_id = l.brawler_id
-       ORDER BY l.trophies DESC`).all();
-    return json(results);
-  }
+  if (path === '/api/brawlers') return json(await brawlersData(db));
 
   const m = /^\/api\/brawler\/(\d+)$/.exec(path);
   if (m) {
@@ -331,13 +368,19 @@ async function handleApi(req, env, url) {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
-    if (url.pathname === '/og.png') return serveOg(env);
-    if (url.pathname === '/' || url.pathname === '/index.html') return serveIndex(req, env);
+    const versioned = url.searchParams.has('v');
+    if (url.pathname === '/og.png') return cached(req, ctx, versioned ? 86400 : 600, versioned ? 86400 : 600, () => serveOg(env));
+    if (url.pathname === '/' || url.pathname === '/index.html') return cached(req, ctx, 60, 0, () => serveIndex(req, env));
     if (url.pathname.startsWith('/api/')) {
-      try { return await handleApi(req, env, url); }
-      catch (e) { console.error(e); return json({ error: 'internal error' }, 500, 0); }
+      const run = async () => {
+        try { return await handleApi(req, env, url); }
+        catch (e) { console.error(e); return json({ error: 'internal error' }, 500, 0); }
+      };
+      // 手動更新不能快取；其餘 GET：有版本號存一天，沒有的存 30 秒
+      if (req.method !== 'GET') return run();
+      return cached(req, ctx, versioned ? 86400 : 30, versioned ? 3600 : 10, run);
     }
     return env.ASSETS.fetch(req);
   },

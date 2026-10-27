@@ -557,3 +557,15 @@ footer { text-align: center; margin: 28px 0 8px; color: var(--muted); font-size:
 .bcard .nm { display: flex; align-items: center; gap: 4px; }
 
 footer p { margin: 4px 0; }
+
+/* =====================================================================
+   效能：主內容的卡片不做即時模糊
+   背景本來就已經模糊過，卡片再 backdrop-filter 一次看起來幾乎一樣，
+   但幾十張卡片各自即時模糊會讓捲動一頓一頓的。
+   浮在上面的東西（側邊欄、下拉選單、彈窗、提示框）才保留真正的玻璃模糊。
+   ===================================================================== */
+:root { --glass-flat: rgb(32 34 40 / .58); }
+@media (prefers-color-scheme: light) { :root { --glass-flat: rgb(255 255 255 / .62); } }
+.main .glass { -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(160deg, var(--glass-sheen), transparent 40%), var(--glass-flat); }
+/* 固定的模糊背景獨立成一層，捲動時不重畫 */
+.backdrop { transform: translateZ(0); will-change: transform; contain: strict; }

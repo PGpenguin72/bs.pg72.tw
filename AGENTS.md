@@ -38,7 +38,8 @@ npm run deploy                             # 有 env 的話每個 env 都要部�
 - 官方 API 只給最近 25 場戰鬥。`collect()` 只寫入比資料庫裡最新一場更新的戰鬥，`battle_time` 是主鍵
 - 快照（`player_snapshots`、`brawler_snapshots`）**只在數值有變時**才寫一筆，用 `parse.js` 的 `SNAPSHOT_KEYS` / `BRAWLER_KEYS` 比對。新增欄位時要記得加進去
 - 排行榜、輪替、戰隊每小時抓一次，英雄總表每天一次，計時存在 `kv` 表（`*_fetched`）
-- 分享圖存在 `kv` 的 `og`（base64 PNG），有新戰鬥或超過一小時就重畫
+- 分享圖存在 `kv` 的 `og`（base64 PNG），分享文字另存 `og_meta`（首頁只讀這筆小的），有新戰鬥或超過一小時就重畫
+- **快取**：`collect()` 在資料真的有變時寫入 `kv.version`。前端開頁面打 `/api/init`（CDN 存 30 秒）拿齊首頁資料和版本號，之後所有 `/api/*` 請求都帶 `?v=版本`，Worker 用 Cache API 存一天，版本一換自然失效。手動更新用 `?fresh=` 繞過。新增 API 時不用自己處理快取，`fetch()` 會統一包；但回應內容必須只取決於網址（含 `v`）
 - 統計用 `outcome`（W / L / D）。大亂鬥沒有勝負，用名次換算：單人前 4、雙人前 2、其他前一半算贏
 - 時間：資料庫存 epoch ms（UTC）；「幾點、哪天」的統計用台北時間（`TPE = 8 * 3600`）
 
