@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>荒野戰績 · PG企鵝</title>
+  <meta name="description" content="PG企鵝的荒野亂鬥戰績紀錄：戰鬥紀錄、勝率、獎盃走勢、英雄統計。">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0d0e11">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/side.css">
+</head>
+<body>
+  <!-- 玻璃要透出東西才好看：最常用英雄 + 最近一張地圖，模糊後當桌布 -->
+  <div class="backdrop" aria-hidden="true">
+    <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+    <img id="bg-map" alt="">
+    <img id="bg-brawler" alt="">
+  </div>
+
+  <div class="app">
+    <aside class="side glass">
+      <!-- 玩家卡：最強英雄從卡片右上角探出來 -->
+      <section class="pcard">
+        <img id="hero-brawler" class="pc-art" alt="" hidden>
+        <div class="avatar"><img id="avatar" alt="" hidden></div>
+        <div class="id">
+          <h1 id="name">載入中…</h1>
+          <div class="chips"><span id="tag" class="chip"></span><span id="club" class="chip" hidden></span></div>
+        </div>
+        <div class="pc-trophy"><img class="tb-icon" src="/trophy.svg" alt=""><b id="trophies">–</b></div>
+        <div class="pc-meta" id="highest"></div>
+        <div class="pc-stats" id="profile"></div>
+      </section>
+
+      <!-- iOS 設定風格：彩色圖示 + 右側重點數字 -->
+      <nav class="seg nav" id="tabs" role="tablist">
+        <span class="seg-thumb"></span>
+        <button data-tab="overview" class="on"><span class="ni" style="--c:#0a84ff"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zm0 7h6v-5H4zm10 0h6v-9h-6zm0-16v5h6V4z"/></svg></span><span class="nl">總覽</span><span class="nv" data-nv="overview"></span></button>
+        <button data-tab="battles"><span class="ni" style="--c:#ff453a"><svg viewBox="0 0 24 24"><path d="M6.9 3 3 6.9l4.2 4.2-2.3 2.3 1.4 1.4 1.1-1.1 2.2 2.2-2.6 2.6L8.4 20l2.6-2.6 2.6 2.6 1.4-1.4-2.6-2.6 2.2-2.2 1.1 1.1 1.4-1.4-2.3-2.3L21 3h-4l-7 7z"/></svg></span><span class="nl">戰鬥</span><span class="nv" data-nv="battles"></span></button>
+        <button data-tab="brawlers"><span class="ni" style="--c:#30d158"><svg viewBox="0 0 24 24"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9m0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5"/></svg></span><span class="nl">英雄</span><span class="nv" data-nv="brawlers"></span></button>
+        <button data-tab="prestige"><span class="ni" style="--c:#ff9f0a"><svg viewBox="0 0 24 24"><path d="M5 16 3 6l5.5 4L12 4l3.5 6L21 6l-2 10zm0 2h14v2H5z"/></svg></span><span class="nl">威望</span><span class="nv" data-nv="prestige"></span></button>
+        <button data-tab="ranking"><span class="ni" style="--c:#bf5af2"><svg viewBox="0 0 24 24"><path d="M3 21v-8h5v8zm6.5 0V3h5v18zM16 21v-12h5v12z"/></svg></span><span class="nl">排名</span><span class="nv" data-nv="ranking"></span></button>
+      </nav>
+
+      <div class="side-foot">
+        <span id="updated" class="updated"></span>
+        <button id="refresh" type="button" class="btn glass" title="立即更新"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>更新</span></button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section id="tab-overview" class="tab">
+        <div class="page-head">
+          <h2 class="page-title">總覽</h2>
+          <nav class="seg glass small" id="range">
+            <span class="seg-thumb"></span>
+            <button data-days="1">今天</button>
+            <button data-days="7" class="on">7 天</button>
+            <button data-days="30">30 天</button>
+            <button data-days="0">全部</button>
+          </nav>
+        </div>
+
+        <div class="dash">
+          <div class="card glass a-ring ring-card" id="ring"></div>
+          <div class="card glass a-kg kpi" id="k-games"></div>
+          <div class="card glass a-kt kpi" id="k-trophy"></div>
+          <div class="card glass a-ks kpi" id="k-star"></div>
+          <div class="card glass a-kk kpi" id="k-streak"></div>
+
+          <div class="card glass a-form">
+            <div class="card-head"><h2>最近 30 場</h2><span class="hint" id="form-hint"></span></div>
+            <div id="form" class="form-strip"></div>
+          </div>
+
+          <div class="card glass a-trophy">
+            <div class="card-head"><h2>獎盃走勢</h2><span class="hint" id="trophy-hint"></span></div>
+            <div id="trophy-chart" class="chart"></div>
+          </div>
+
+          <div class="card glass a-mains">
+            <div class="card-head"><h2>主力英雄</h2></div>
+            <div id="mains" class="mains"></div>
+          </div>
+
+          <div class="card glass a-daily">
+            <div class="card-head"><h2>每日戰況</h2><span class="legend"><i class="lw"></i>勝 <i class="ll"></i>敗 <i class="lt"></i>累計獎盃</span></div>
+            <div id="daily-chart" class="chart"></div>
+          </div>
+
+          <div class="card glass a-usage">
+            <div class="card-head"><h2>英雄使用比例</h2></div>
+            <div id="usage" class="usage"></div>
+          </div>
+          <div class="card glass a-modes">
+            <div class="card-head"><h2>各模式勝率</h2></div>
+            <div id="by-mode" class="hbars"></div>
+          </div>
+          <div class="card glass a-mates">
+            <div class="card-head"><h2>常一起玩的隊友</h2></div>
+            <div id="teammates" class="list"></div>
+          </div>
+
+          <div class="card glass a-heat">
+            <div class="card-head"><h2>什麼時候最常玩</h2><span class="hint">台北時間 · 顏色越深場數越多</span></div>
+            <div id="heatmap" class="heatmap"></div>
+          </div>
+
+          <div class="card glass a-brw">
+            <div class="card-head"><h2>英雄表現</h2></div>
+            <div id="by-brawler" class="rows"></div>
+          </div>
+          <div class="card glass a-maps">
+            <div class="card-head"><h2>地圖</h2></div>
+            <div id="by-map" class="map-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-battles" class="tab" hidden>
+        <div class="page-head">
+          <h2 class="page-title">戰鬥紀錄</h2>
+          <div class="filters">
+            <select id="f-brawler" class="glass"><option value="">全部英雄</option></select>
+            <select id="f-mode" class="glass"><option value="">全部模式</option></select>
+          </div>
+        </div>
+        <ol id="battle-list" class="battles"></ol>
+        <button id="more" type="button" class="btn glass more" hidden>載入更多</button>
+      </section>
+
+      <section id="tab-brawlers" class="tab" hidden>
+        <div class="page-head">
+          <h2 class="page-title">英雄 <small id="brawler-note" class="hint"></small></h2>
+          <select id="b-sort" class="glass"><option value="trophies">依獎盃</option><option value="next">離威望最近</option><option value="games">依場數</option><option value="winrate">依勝率</option><option value="power">依等級</option><option value="name">依名字</option></select>
+        </div>
+        <div id="collection" class="collection glass"></div>
+        <div id="brawler-grid" class="bgrid"></div>
+      </section>
+
+      <section id="tab-prestige" class="tab" hidden>
+        <div class="page-head"><h2 class="page-title">巔峰威望 <small class="hint">每 1,000 盃升一級</small></h2></div>
+        <div class="pdash">
+          <div class="card glass p-total" id="p-total"></div>
+          <div class="card glass p-next" id="p-next"></div>
+          <div class="card glass p-near">
+            <div class="card-head"><h2>即將升威望</h2><span class="hint">離下一個 1,000 盃最近的英雄</span></div>
+            <div id="p-near" class="near-list"></div>
+          </div>
+          <div class="card glass p-wall">
+            <div class="card-head"><h2>已達成威望</h2><span class="hint" id="p-wall-hint"></span></div>
+            <div id="p-wall" class="pwall"></div>
+          </div>
+          <div class="card glass p-time">
+            <div class="card-head"><h2>升級紀錄</h2></div>
+            <div id="p-time" class="ptime"></div>
+          </div>
+          <div class="card glass p-dist">
+            <div class="card-head"><h2>英雄獎盃分布</h2><span class="hint">每 100 盃一格</span></div>
+            <div id="p-dist" class="chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-ranking" class="tab" hidden>
+        <div class="page-head"><h2 class="page-title">排名 <small class="hint">官方排行榜只公開前 200 名</small></h2></div>
+        <div class="rdash">
+          <div class="card glass r-ranked"><div id="r-ranked" class="rk"></div><div id="r-elo" class="chart"></div></div>
+          <div class="card glass r-fame" id="r-fame"></div>
+          <div class="card glass r-tw"><div class="card-head"><h2>🇹🇼 台灣排行榜</h2></div><div id="r-tw"></div></div>
+          <div class="card glass r-global"><div class="card-head"><h2>🌏 全球排行榜</h2></div><div id="r-global"></div></div>
+          <div class="card glass r-brawlers"><div class="card-head"><h2>英雄排行門檻</h2><span class="hint">你最高的幾隻英雄 vs 第 200 名</span></div><div id="r-brawlers" class="rblist"></div></div>
+          <div class="card glass r-rot"><div class="card-head"><h2>目前輪替地圖</h2><span class="hint">附上你在這張圖的勝率</span></div><div id="r-rotation" class="rotation"></div></div>
+        </div>
+      </section>
+
+      <footer>資料來源：Brawl Stars 官方 API，每 10 分鐘自動抓一次 · 圖片：Brawlify · 非官方網站 · <a href="https://pg72.tw">pg72.tw</a></footer>
+    </main>
+  </div>
+
+  <dialog id="brawler-dialog" class="glass">
+    <form method="dialog"><button class="close" aria-label="關閉">✕</button></form>
+    <div id="brawler-detail"></div>
+  </dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
