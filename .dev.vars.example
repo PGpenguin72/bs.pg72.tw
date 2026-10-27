@@ -1,0 +1,7 @@
+# 本機開發用（`npm run dev`）。複製成 .dev.vars 再填（.dev.vars 不進版控）：
+#   cp .dev.vars.example .dev.vars
+#
+# 本機直接連官方 API：申請 key 時把「你自己的 IP」加進白名單。
+# 線上的 Worker 走 proxy，要另外一把綁 45.79.218.79 的 key（同一把 key 也可以同時綁兩個 IP）。
+BS_TOKEN=
+API_BASE=https://api.brawlstars.com/v1

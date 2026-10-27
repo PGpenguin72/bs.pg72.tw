@@ -556,3 +556,4 @@ footer { text-align: center; margin: 28px 0 8px; color: var(--muted); font-size:
 .main-card .pk { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: .7rem; margin-left: 4px; }
 .bcard .nm { display: flex; align-items: center; gap: 4px; }
 
+footer p { margin: 4px 0; }

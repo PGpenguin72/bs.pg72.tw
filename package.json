@@ -1,12 +1,15 @@
 {
-  "name": "bs-pg72",
+  "name": "brawl-stars-tracker",
+  "description": "Self-hosted Brawl Stars stats tracker on Cloudflare Workers + D1",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "dev": "wrangler dev --port 8787",
+    "dev": "wrangler dev --port 7273 --inspector-port 7274",
     "deploy": "wrangler deploy",
-    "migrate": "wrangler d1 migrations apply bs-pg72 --remote"
+    "migrate": "wrangler d1 migrations apply DB --remote",
+    "import-trophies": "node scripts/import-trophies.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.147.0"

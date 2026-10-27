@@ -40,7 +40,7 @@ export function shareText(d) {
 }
 
 function html(d, now) {
-  const { p, top, rec, w, l, site = 'bs.pg72.tw' } = d;
+  const { p, top, rec, w, l, site = '' } = d;
   const stamp = new Date(now).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   const pill = (label, value, color = '#fff') => `<div style="display:flex;flex-direction:column;padding:12px 20px;border-radius:22px;background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.16);margin-right:14px">
       <div style="font-size:20px;font-weight:700;color:rgba(235,235,245,0.62)">${label}</div>
@@ -84,7 +84,7 @@ function html(d, now) {
       ${b1 ? `<img src="${CDN}/brawlers/model/${b1.brawler_id}.png" width="290" height="290" style="position:absolute;right:70px;top:4px;object-fit:contain"/>` : ''}
       <div style="display:flex;flex-direction:column">${top.map(card).join('')}</div>
     </div>
-    <div style="display:flex;position:absolute;right:50px;bottom:12px;font-size:18px;font-weight:700;color:rgba(235,235,245,0.5)">${site} · ${stamp}</div>
+    <div style="display:flex;position:absolute;right:50px;bottom:12px;font-size:18px;font-weight:700;color:rgba(235,235,245,0.5)">${site ? `${site} · ` : ''}${stamp}</div>
   </div>`;
 }
 

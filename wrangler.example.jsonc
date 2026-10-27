@@ -1,0 +1,44 @@
+// 複製成 wrangler.jsonc 再改（wrangler.jsonc 不進版控）：
+//   cp wrangler.example.jsonc wrangler.jsonc
+// 要改的地方都標了 TODO。
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "brawl-stars-tracker",                       // TODO: Worker 名稱（帳號內不能重複）
+  "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",         // TODO: `npx wrangler whoami` 可以看到
+  "compatibility_date": "2026-10-06",
+  "main": "src/worker.js",
+  // /api/*、首頁（要塞分享用的 meta）、分享圖由 Worker 處理，其餘直接回傳 public/ 的靜態檔
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*", "/", "/index.html", "/og.png"] },
+  // TODO: `npx wrangler d1 create brawl-stars-tracker` 後把 database_id 貼過來
+  "d1_databases": [{ "binding": "DB", "database_name": "brawl-stars-tracker", "database_id": "YOUR_D1_DATABASE_ID", "migrations_dir": "migrations" }],
+  // 官方 API 只給最近 25 場，每 10 分鐘抓一次就不會漏
+  "triggers": { "crons": ["*/10 * * * *"] },
+  "vars": {
+    "PLAYER_TAG": "YOURTAG",                          // TODO: 玩家標籤，不用加 #
+    "SITE": "stats.example.com",                      // TODO: 分享圖右下角顯示的網址（可以留空）
+    // 官方 API key 要綁 IP，但 Worker 的出口 IP 不固定，所以走 RoyaleAPI 的免費 proxy；
+    // 申請 key 時 IP 填 45.79.218.79。key 本身用 `npx wrangler secret put BS_TOKEN` 設定
+    "API_BASE": "https://bsproxy.royaleapi.dev/v1"
+  },
+  "observability": { "enabled": true },
+  // 沒有自己的網域就把 workers_dev 改成 true、刪掉 routes，會用 *.workers.dev 網址
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "stats.example.com", "custom_domain": true }]  // TODO: 你的網域（要在同一個 Cloudflare 帳號）
+
+  // 想再追蹤其他玩家（例如朋友），加一個 env，各自有自己的 Worker / D1 / key：
+  //   npx wrangler d1 create brawl-stars-tracker-friend
+  //   npx wrangler d1 migrations apply DB --remote --env friend
+  //   npx wrangler deploy --env friend
+  //   npx wrangler secret put BS_TOKEN --env friend
+  // ,"env": {
+  //   "friend": {
+  //     "name": "brawl-stars-tracker-friend",
+  //     "d1_databases": [{ "binding": "DB", "database_name": "brawl-stars-tracker-friend", "database_id": "…", "migrations_dir": "migrations" }],
+  //     "triggers": { "crons": ["*/10 * * * *"] },
+  //     "vars": { "PLAYER_TAG": "FRIENDTAG", "SITE": "friend.stats.example.com", "API_BASE": "https://bsproxy.royaleapi.dev/v1" },
+  //     "workers_dev": false, "preview_urls": false,
+  //     "routes": [{ "pattern": "friend.stats.example.com", "custom_domain": true }]
+  //   }
+  // }
+}
