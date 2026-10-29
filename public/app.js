@@ -206,6 +206,8 @@ function areaChart(el, pts, { h = 240, color = 'var(--accent)', label = p => fmt
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
   if (y0 === y1) { y0 -= 10; y1 += 10; }
   const sp = y1 - y0; y0 -= sp * .1; y1 += sp * .12;
+  // 上下留白是為了好看，但獎盃、分數不會是負的：資料都 ≥ 0 時，Y 軸最低停在 0
+  if (Math.min(...ys) >= 0) y0 = Math.max(0, y0);
   const X = x => pad.l + ((x - x0) / (x1 - x0 || 1)) * (w - pad.l - pad.r);
   const Y = y => pad.t + (1 - (y - y0) / (y1 - y0)) * (h - pad.t - pad.b);
   // 平滑曲線（單調 cubic，避免超出資料範圍）
