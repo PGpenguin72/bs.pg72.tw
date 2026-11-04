@@ -1,7 +1,7 @@
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 // 遊戲裡的名字可以夾顏色標籤 <c0>…</c>，顯示前先拿掉
-const esc = s => String(s ?? '').replace(/<\/?c\d*>/gi, '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = s => String(s ?? '').replace(/<\/?c[0-9a-f]*>/gi, '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => Math.round(n ?? 0).toLocaleString('zh-TW');
 const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n ?? 0));
 const pct = (w, g) => (g ? Math.round((w / g) * 100) : 0);
@@ -33,6 +33,8 @@ const MODES = {
   bossFight: ['魔王挑戰', '#ff375f'], roboRumble: ['機器人大亂鬥', '#ff375f'], bigGame: ['狩獵巨獸', '#ff375f'],
   hunters: ['獵人行動', '#5ac8fa'], presentPlunder: ['禮物大劫案', '#ff453a'], paintBrawl: ['亂鬥油漆戰', '#bf5af2'],
   trophyThieves: ['獎盃大盜', '#ffd60a'], brawlHockey: ['亂鬥冰球', '#64d2ff'], airHockey: ['空氣曲棍球', '#5ac8fa'], megaBoss: ['超級魔王戰', '#ff375f'],
+  knockout5V5: ['5v5 極限淘汰賽', '#ff9f0a'], brawlBall5V5: ['5v5 亂鬥足球', '#5e8bff'], brawlArena: ['亂鬥競技場', '#bf5af2'],
+  deathmatch: ['死鬥', '#ff453a'], deathmatch5v5: ['5v5 死鬥', '#ff453a'], tagTeam: ['接力賽', '#64d2ff'],
 };
 const modeName = m => MODES[m]?.[0] || (m ? m.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()) : '未知模式');
 const modeColor = m => MODES[m]?.[1] || '#8e8e93';
@@ -343,7 +345,7 @@ async function loadSummary() {
   $('#name').textContent = p.name;
   document.title = `${p.name} · 荒野戰績`;
   $('#tag').textContent = p.tag;
-  if (p.club?.name) { $('#club').textContent = '🛡️ ' + p.club.name.replace(/<\/?c\d*>/gi, ''); $('#club').hidden = false; }
+  if (p.club?.name) { $('#club').textContent = '🛡️ ' + p.club.name.replace(/<\/?c[0-9a-f]*>/gi, ''); $('#club').hidden = false; }
   if (p.icon?.id) { const a = $('#avatar'); a.onerror = () => (a.hidden = true); a.src = `${CDN}/profile-icons/regular/${p.icon.id}.png`; a.hidden = false; }
   countUp($('#trophies'), p.trophies);
   $('#highest').textContent = `歷史最高 ${fmt(p.highestTrophies)} · 等級 ${fmt(p.expLevel)}`;

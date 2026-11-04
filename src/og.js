@@ -9,7 +9,7 @@ const fmt = n => Math.round(n ?? 0).toLocaleString('en-US');
 // workers-og 的 HTML 解析器不會把 &gt; 這類實體還原，會原封不動印出來；
 // 所以不用實體跳脫，改把會破壞標籤的字元換成長得像的全形字
 // 遊戲裡的名字可以夾顏色標籤 <c0>…</c>，畫圖前先拿掉
-const esc = s => String(s ?? '').replace(/<\/?c\d*>/gi, '').replace(/[&<>"]/g, c => ({ '&': '＆', '<': '‹', '>': '›', '"': '＂' }[c]));
+const esc = s => String(s ?? '').replace(/<\/?c[0-9a-f]*>/gi, '').replace(/[&<>"]/g, c => ({ '&': '＆', '<': '‹', '>': '›', '"': '＂' }[c]));
 const TROPHY = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M18 8h28v14c0 9-6 16-14 16S18 31 18 22z" fill="#ffc21a"/><path d="M18 12H8c0 9 5 14 11 15M46 12h10c0 9-5 14-11 15" fill="none" stroke="#ffc21a" stroke-width="5" stroke-linecap="round"/><rect x="28" y="37" width="8" height="10" fill="#d98a00"/><rect x="18" y="47" width="28" height="9" rx="3" fill="#ffc21a"/></svg>');
 
 // 從 D1 撈出分享圖和分享文字需要的資料
@@ -36,7 +36,7 @@ export function shareText(d) {
     w + l ? `最近 ${w + l} 場 ${w} 勝 ${l} 敗` : null,
     top[0] ? `最強 ${title(top[0].name)} ${fmt(top[0].trophies)} 盃` : null,
   ].filter(Boolean);
-  return { title: `${String(p.name).replace(/<\/?c\d*>/gi, '')} 的荒野戰績`, desc: parts.join(' · ') };
+  return { title: `${String(p.name).replace(/<\/?c[0-9a-f]*>/gi, '')} 的荒野戰績`, desc: parts.join(' · ') };
 }
 
 function html(d, now) {
