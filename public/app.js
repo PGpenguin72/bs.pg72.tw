@@ -21,6 +21,8 @@ const CDN = 'https://cdn.brawlify.com';
 const icon = id => `${CDN}/brawlers/borderless/${id}.png`;
 const model = id => `${CDN}/brawlers/model/${id}.png`;
 const mapImg = id => (id ? `${CDN}/maps/regular/${id}.png` : '');
+// 友誼賽常用自訂地圖：API 給的地圖 ID 是 0、名稱是空的，沒有照片 → 畫一張帶模式名的佔位圖
+const noMap = mode => `<span class="nomap-ph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zm0 2.2 6 2v11.6l-6-2z"/></svg><b>${esc(modeName(mode))}</b><small>自訂地圖</small></span>`;
 const img = (src, cls = '', alt = '') => src ? `<img class="${cls}" src="${src}" alt="${esc(alt)}" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'">` : '';
 const TROPHY = '/trophy.svg';
 
@@ -482,14 +484,14 @@ function battleItem(b) {
   const sep = day !== lastDay ? `<li class="day-sep">${day}</li>` : '';
   lastDay = day;
   return `${sep}<li class="battle glass ${o} fade-in" style="--mc:${modeColor(b.mode)}">
-    <div class="pic">${img(mapImg(b.event_id), 'mapimg')}<img class="me" src="${icon(b.brawler_id)}" alt="" onerror="this.style.visibility='hidden'"><span class="pw">${b.brawler_power ?? '?'}</span></div>
+    <div class="pic ${b.event_id ? '' : 'nomap'}">${b.event_id ? img(mapImg(b.event_id), 'mapimg') : noMap(b.mode)}<img class="me" src="${icon(b.brawler_id)}" alt="" onerror="this.style.visibility='hidden'">${b.brawler_power > 0 ? `<span class="pw">${b.brawler_power}</span>` : ''}</div>
     <div class="body">
       <div class="top">
         <span class="res">${res}</span>
         ${b.is_star_player ? '<span class="badge">⭐ 明星玩家</span>' : ''}
         <span class="tc ${b.trophy_change > 0 ? 'pos' : b.trophy_change < 0 ? 'neg' : ''}">${b.trophy_change != null ? `${signed(b.trophy_change)}<img src="${TROPHY}" alt="">` : ''}</span>
       </div>
-      <div class="meta"><i class="mode-dot"></i><b>${esc(modeName(b.mode))}</b>${b.map ? ` · ${esc(b.map)}` : ''} · ${when(b.at)}${b.duration ? ` · ${Math.floor(b.duration / 60)}:${String(b.duration % 60).padStart(2, '0')}` : ''} · ${esc(TYPES[b.type] || b.type || '')}</div>
+      <div class="meta"><i class="mode-dot"></i><b>${esc(modeName(b.mode))}</b> · ${b.map ? esc(b.map) : '自訂地圖'} · ${when(b.at)}${b.duration ? ` · ${Math.floor(b.duration / 60)}:${String(b.duration % 60).padStart(2, '0')}` : ''} · ${esc(TYPES[b.type] || b.type || '')}</div>
       <div class="teams">
         <span class="team mine">${face(self, true)}${b.teammates.map(p => face(p)).join('')}</span>
         ${foes.length ? `<span class="vs">VS</span><span class="team foe">${foes.map(p => face(p)).join('')}${b.opponents.length > 9 ? `<span class="hint">+${b.opponents.length - 9}</span>` : ''}</span>` : ''}
@@ -572,7 +574,7 @@ async function openBrawler(id) {
       <div class="full"><div class="card-head"><h2>巔峰威望 ${(l.prestige || 0) + 1}</h2><span class="hint">${fmt(l.trophies)} / ${fmt(nextPrestige(l))} · 還差 ${fmt(nextPrestige(l) - l.trophies)} 盃</span></div><div class="pprog big"><i style="width:${prestigeProgress(l) * 100}%"></i></div></div>
       ${gear(raw.gadgets, '道具')}${gear(raw.starPowers, '星能力')}${gear(raw.gears, '裝備')}${gear(raw.hyperCharges, '極限充能')}
       <div class="full"><div class="card-head"><h2>獎盃走勢</h2></div><div id="bd-chart" class="chart"></div></div>
-      ${d.maps.length ? `<div class="full"><div class="card-head"><h2>地圖表現</h2></div><div class="map-grid">${d.maps.slice(0, 6).map(m => `<div class="map-card" style="--mc:${modeColor(m.mode)}">${img(mapImg(m.event_id))}<div class="cap"><div class="mn">${esc(m.map || modeName(m.mode))}</div><div class="ms"><span>${esc(modeName(m.mode))}</span><span>${m.games} 場 · ${wr(m)}%</span></div></div></div>`).join('')}</div></div>` : ''}
+      ${d.maps.length ? `<div class="full"><div class="card-head"><h2>地圖表現</h2></div><div class="map-grid">${d.maps.slice(0, 6).map(m => `<div class="map-card" style="--mc:${modeColor(m.mode)}">${m.event_id ? img(mapImg(m.event_id)) : noMap(m.mode)}<div class="cap"><div class="mn">${esc(m.map || '自訂地圖')}</div><div class="ms"><span>${esc(modeName(m.mode))}</span><span>${m.games} 場 · ${wr(m)}%</span></div></div></div>`).join('')}</div></div>` : ''}
     </div>`;
   $('#brawler-dialog').showModal();
   areaChart($('#bd-chart'), d.history.map(r => ({ x: r.at, y: r.trophies })), { h: 200, color: brawlerColor(l.brawler_id) });
